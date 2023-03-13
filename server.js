@@ -12,15 +12,16 @@ import mongoose from "mongoose";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import minimist from "minimist";
-import path from 'path';
+import path from "path";
+import { fork } from "child_process";
 
-const args = minimist(process.argv.slice(2), [])
+const args = minimist(process.argv.slice(2), []);
 
 //VARIABLES DE ENTORNO
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config();
 
-const urlMongoDB = process.env.URLMONGODB
+const urlMongoDB = process.env.URLMONGODB;
 //--------------------
 
 const app = express();
@@ -99,11 +100,9 @@ passport.use(
       };
 
       try {
-        await mongoose.connect(urlMongoDB,
-          {
-            serverSelectionTimeoutMS: 10000,
-          }
-        );
+        await mongoose.connect(urlMongoDB, {
+          serverSelectionTimeoutMS: 10000,
+        });
         try {
           const user = await model.findOne({ email: email });
           if (!user) {
@@ -135,12 +134,9 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
   try {
-    await mongoose.connect(
-      urlMongoDB,
-      {
-        serverSelectionTimeoutMS: 10000,
-      }
-    );
+    await mongoose.connect(urlMongoDB, {
+      serverSelectionTimeoutMS: 10000,
+    });
     try {
       const user = await model.findById(id);
       done(null, user);
@@ -195,11 +191,9 @@ app.post("/register", (req, res) => {
 
   async function RegisterUser(password) {
     try {
-      await mongoose.connect(urlMongoDB,
-        {
-          serverSelectionTimeoutMS: 10000,
-        }
-      );
+      await mongoose.connect(urlMongoDB, {
+        serverSelectionTimeoutMS: 10000,
+      });
       try {
         let users = await model.find({});
         if (users.some((u) => u.email == user.email)) {
@@ -286,7 +280,6 @@ app.get("/", checkAuthentication, (req, res) => {
   });
 });
 
-
 //FALLA AL LOGEAR
 app.get("/faillogin", (req, res) => {
   res.render("faillogin");
@@ -316,34 +309,42 @@ app.get("/api/productos-test", (req, res) => {
   res.render("productos-test", { productosFake });
 });
 
+//INFO UTILIZANDO EL OBJETO PROCESS
 app.get("/info", (req, res) => {
-
   const info = {
-    args: args._[0] || args['port'] || args['p'] || JSON.stringify(args),
+    args: args._[0] || args["port"] || args["p"] || JSON.stringify(args),
     platform: process.platform,
     version: process.version,
     memory: process.memoryUsage().rss,
     path: process.cwd(),
     pid: process.pid,
-    folder: path.dirname(new URL(import.meta.url).pathname)
-  }
+    folder: path.dirname(new URL(import.meta.url).pathname),
+  };
 
-  res.render("info", { info })
-})
+  res.render("info", { info });
+});
 
-app.get("/api/randoms/:num", (req, res) => {
+//CHILD PROCESS
+app.get("/api/randoms", (req, res) => {
+  const cant = Number(req.query.cant) || 10e7;
 
-  let { num } = req.params;
-  parseInt(num)
+  const child = fork("./api/randoms.js");
+
+  child.send(cant);
   
-})
+  child.on("message", (result) => {
+
+    res.json(result)
+
+  });
+});
 
 //SERVIDOR
 // ----------------------------------------------|
 
 //Opciones de argumento: 3030 | --port 3030 | -p 3030 | "default 8080"
 
-const PORT = args._[0] || args['port'] || args['p'] || 8080;
+const PORT = args._[0] || args["port"] || args["p"] || 8080;
 
 const srv = server.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${srv.address().port}`);
